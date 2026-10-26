@@ -135,7 +135,7 @@
       ],
       "alternative": {
         "type": "Question Classifier",
-        "note": "Define 5 classes using label definitions from §2; put HV-priority rule in Instructions; removes need for if_route."
+        "note": "Define 5 classes using label definitions from §2; put HV-priority and follow-up rules in Instructions; removes need for if_route. llm_refusal then cannot read llm_classify.text: insert the Question Classifier's class_name output instead (see workflow-nodes.md §3.3)."
       }
     },
     {
@@ -148,33 +148,38 @@
           "variable": "llm_classify.text",
           "operator": "contains",
           "value": "unsafe_hv",
-          "target": "llm_refusal"
+          "target": "llm_refusal",
+          "handle": "unsafe_hv"
         },
         {
           "case": "ELIF",
           "variable": "llm_classify.text",
           "operator": "contains",
           "value": "fault",
-          "target": "pe_slots"
+          "target": "pe_slots",
+          "handle": "fault"
         },
         {
           "case": "ELIF",
           "variable": "llm_classify.text",
           "operator": "contains",
           "value": "knowledge",
-          "target": "kr_knowledge"
+          "target": "kr_knowledge",
+          "handle": "knowledge"
         },
         {
           "case": "ELIF",
           "variable": "llm_classify.text",
           "operator": "contains",
           "value": "english",
-          "target": "kr_glossary"
+          "target": "kr_glossary",
+          "handle": "english"
         },
         {
           "case": "ELSE",
           "target": "llm_refusal",
-          "note": "out_of_scope or unexpected output"
+          "note": "out_of_scope or unexpected output",
+          "handle": "else"
         }
       ]
     },
@@ -250,7 +255,7 @@
       "type": "Code",
       "title": "合并槽位",
       "language": "python3",
-      "purpose": "Merge new slots from pe_slots with old conversation values: if pe_slots.__is_success == 0, keep ALL old values; otherwise use the new value only when it is non-empty (after strip), else keep the old value. Prevents Variable Assigner Overwrite from clearing slots.",
+      "purpose": "Merge pe_slots output with old conversation values. (1) __is_success==0 -> keep ALL old values. (2) Blank/null new value -> keep old. (3) Non-definite answers (不确定/不知道/未知/unknown/不清楚/没注意 ..., case- and whitespace-insensitive, whole-value match) are normalized to '不确定'; power_state outside {能READY, 不能READY, 12V都没电} (after alias mapping) is also normalized to '不确定'. (4) A '不确定' new value never overwrites a confirmed old value; it may only fill an empty slot. (5) Also outputs fault_query = brand + vehicle_model + powertrain + power_state + symptom + warning_info (non-empty, non-uncertain) for kr_fault.",
       "inputs": [
         {
           "name": "is_success",
@@ -365,11 +370,17 @@
         {
           "name": "recent_events",
           "type": "string"
+        },
+        {
+          "name": "fault_query",
+          "type": "string"
         }
       ],
-      "code": "SLOTS = [\"brand\", \"vehicle_model\", \"model_year\", \"powertrain\", \"mileage\",\n         \"power_state\", \"symptom\", \"warning_info\", \"recent_events\"]\n\n\ndef _clean(v):\n    if v is None:\n        return \"\"\n    return str(v).strip()\n\n\ndef main(is_success,\n         new_brand, new_vehicle_model, new_model_year, new_powertrain, new_mileage,\n         new_power_state, new_symptom, new_warning_info, new_recent_events,\n         old_brand, old_vehicle_model, old_model_year, old_powertrain, old_mileage,\n         old_power_state, old_symptom, old_warning_info, old_recent_events) -> dict:\n    args = dict(locals())\n    # 提取失败（__is_success == 0）时，9 个槽位全部沿用旧值\n    failed = _clean(is_success) in (\"0\", \"0.0\", \"False\", \"false\")\n    out = {}\n    for k in SLOTS:\n        old = _clean(args.get(\"old_\" + k))\n        new = _clean(args.get(\"new_\" + k))\n        # 新值为空 → 保留旧值；否则用新值\n        out[k] = old if (failed or not new) else new\n    return out\n",
+      "code": "import re\n\nSLOTS = [\"brand\", \"vehicle_model\", \"model_year\", \"powertrain\", \"mileage\",\n         \"power_state\", \"symptom\", \"warning_info\", \"recent_events\"]\n\nUNCERTAIN = \"不确定\"\n# power_state 只允许 3 个确定值；下面是常见同义写法（去空格/标点、转小写后整句匹配）\nPOWER_STATES = {\n    \"能READY\": [\"能ready\", \"能进入ready\", \"可以ready\", \"可以进入ready\", \"ready正常\",\n                \"能正常ready\", \"可以正常ready\", \"正常ready\", \"ready能亮\", \"ready亮\"],\n    \"不能READY\": [\"不能ready\", \"不能进入ready\", \"进不了ready\", \"无法ready\", \"无法进入ready\",\n                \"上不了ready\", \"ready不亮\", \"没有ready\"],\n    \"12V都没电\": [\"12v都没电\", \"12v没电\", \"全车没电\"],\n}\n\n# 表示\"不确定/不知道\"的说法（去掉空格和标点、转小写后整句匹配）\n_UNCERTAIN_WORDS = {\n    \"不确定\", \"不太确定\", \"不知道\", \"不太知道\", \"不清楚\", \"不太清楚\", \"未知\", \"不详\",\n    \"没注意\", \"没注意到\", \"没留意\", \"不记得\", \"记不清\", \"忘了\", \"说不清\", \"不晓得\",\n    \"待确认\", \"待定\", \"待核实\", \"unknown\", \"unsure\", \"notsure\", \"idk\",\n    \"dontknow\", \"idontknow\", \"n/a\", \"na\",\n}\n# 口语变体：如\"我也不太清楚呢\"\"没注意到啊\"\n_UNCERTAIN_RE = re.compile(r\"^(我)?(也)?(不太|不|没)(确定|知道|清楚|记得|注意|注意到|留意|晓得)(了|呢|啊|哦|耶)?$\")\n_EMPTY_WORDS = {\"null\", \"none\", \"undefined\", \"nil\"}\n_STRIP_RE = re.compile(r\"[\\s。，,\\.！!？?~～、（）()\\\"'“”‘’：:；;]+\")\n\n\ndef _clean(v):\n    if v is None:\n        return \"\"\n    return str(v).strip()\n\n\ndef _key(v):\n    return _STRIP_RE.sub(\"\", v).lower()\n\n\ndef _normalize(slot, v):\n    \"\"\"返回 (值, 是否不确定)。空值返回 (\"\", False)。\"\"\"\n    v = _clean(v)\n    k = _key(v)\n    if not k or k in _EMPTY_WORDS:\n        return \"\", False\n    if k in _UNCERTAIN_WORDS or _UNCERTAIN_RE.match(k):\n        return UNCERTAIN, True\n    if slot == \"power_state\":\n        for name, aliases in POWER_STATES.items():\n            if k in aliases:\n                return name, False\n        # 不在枚举里的 power_state 一律视为不确定（宁可再问一次）\n        return UNCERTAIN, True\n    return v, False\n\n\ndef main(is_success,\n         new_brand, new_vehicle_model, new_model_year, new_powertrain, new_mileage,\n         new_power_state, new_symptom, new_warning_info, new_recent_events,\n         old_brand, old_vehicle_model, old_model_year, old_powertrain, old_mileage,\n         old_power_state, old_symptom, old_warning_info, old_recent_events) -> dict:\n    args = dict(locals())\n    # 提取失败（__is_success == 0）时，不采用任何新值\n    failed = _clean(is_success).lower() in (\"0\", \"0.0\", \"false\")\n    out = {}\n    for k in SLOTS:\n        old, old_unsure = _normalize(k, args.get(\"old_\" + k))\n        new, new_unsure = _normalize(k, args.get(\"new_\" + k))\n        if failed or not new:\n            out[k] = old                      # 新值为空/提取失败 → 保留旧值\n        elif new_unsure and old and not old_unsure:\n            out[k] = old                      # \"不确定\"不能覆盖已确定的旧值\n        else:\n            out[k] = new                      # 其余情况用新值（\"不确定\"只能填空位）\n    parts = [out[k] for k in (\"brand\", \"vehicle_model\", \"powertrain\", \"power_state\",\n                              \"symptom\", \"warning_info\") if out[k] and out[k] != UNCERTAIN]\n    out[\"fault_query\"] = \" \".join(parts)      # 供 kr_fault 检索用（NB5）\n    return out\n",
       "code_ref": "docs/workflow-nodes.md#2.1",
-      "note": "Design only; logic unit-checked locally with plain python3, not run in Dify."
+      "code_file": "dify/code_merge_slots.py",
+      "tests": "tests/test_code_merge_slots.py (offline python3 unittest; not run in Dify)",
+      "note": "Design only. Merge logic checked offline by tests/test_code_merge_slots.py with plain python3; NOT run in Dify (sandbox behaviour such as 'import re' and the real type of __is_success must be verified in Dify)."
     },
     {
       "id": "va_slots",
@@ -438,8 +449,18 @@
               "operator": "is not empty"
             },
             {
+              "variable": "conversation.brand",
+              "operator": "not contains",
+              "value": "不确定"
+            },
+            {
               "variable": "conversation.vehicle_model",
               "operator": "is not empty"
+            },
+            {
+              "variable": "conversation.vehicle_model",
+              "operator": "not contains",
+              "value": "不确定"
             },
             {
               "variable": "conversation.power_state",
@@ -453,14 +474,21 @@
             {
               "variable": "conversation.symptom",
               "operator": "is not empty"
+            },
+            {
+              "variable": "conversation.symptom",
+              "operator": "not contains",
+              "value": "不确定"
             }
           ],
           "target": "kr_fault",
-          "note": "NB2: power_state='不确定' does NOT count as complete -> goes to kr_intake/llm_intake for a follow-up question about READY. No ask-count cap (chosen design: condition only)."
+          "note": "Required slot = non-empty AND not containing '不确定' (code_merge_slots normalizes all non-definite answers to '不确定'). No ask-count cap: if the user can never answer, the flow stays in intake (deliberate; §4 rule 7 then suggests a dealer/qualified technician).",
+          "handle": "complete"
         },
         {
           "case": "ELSE",
-          "target": "kr_intake"
+          "target": "kr_intake",
+          "handle": "else"
         }
       ]
     },
@@ -494,14 +522,15 @@
       "id": "kr_fault",
       "type": "Knowledge Retrieval",
       "title": "排查资料检索",
-      "query": "userinput.query",
+      "query": "code_merge_slots.fault_query",
       "knowledge": [
         "ev-knowledge"
       ],
       "top_k_hint": "3-5, untested",
       "outputs": [
         "result"
-      ]
+      ],
+      "query_note": "NB5: concatenated slots instead of this turn's raw message (multi-turn replies like '海豚，2022 年' retrieve poorly)."
     },
     {
       "id": "llm_troubleshoot",
@@ -574,7 +603,8 @@
       "prompt_ref": "docs/system-prompts.md#§8",
       "outputs": [
         "text"
-      ]
+      ],
+      "inputs_alternative": "If Question Classifier is used: userinput.query + <question_classifier>.class_name"
     },
     {
       "id": "ans_intake",
@@ -708,5 +738,6 @@
     },
     "rule_count": 8,
     "rule_8_emergency": "紧急情况（冒烟、异味、起火、漏液等）立即远离车辆并联系专业救援。"
-  }
+  },
+  "handle_note": "Edge sources of the form 'node:handle' refer to the 'handle' field of that If-Else case."
 }

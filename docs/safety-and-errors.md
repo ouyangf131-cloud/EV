@@ -38,7 +38,9 @@
 | 检索不相关 | 返回内容和问题无关 | 同上；提示词要求"不相关"也视为不足 |
 | 分类输出异常 | `llm_classify` 输出不在 5 个标签内 | If-Else 的 ELSE 分支兜底 → 安全拒答模板（情况 B） |
 | 槽位被清空 | Parameter Extractor 本轮没提取到或提取失败 → 若直接 Overwrite 会变成空值 | 在 `pe_slots` 和 `va_slots` 之间加 Code 节点 `code_merge_slots`：`__is_success==0` 时全部沿用旧值，新值为空时保留旧值，`va_slots` 只 Overwrite 合并结果（见 workflow-nodes.md §2.1）。指令里"没提到就原样输出已记录的值"保留作为第二层保护。需以后实测 |
-| power_state 为「不确定」 | 非空值会被当成"齐全"，跳过问诊 | `if_slots` 条件加 `power_state` not contains `不确定`，继续走问诊（见 workflow-nodes.md §3.2） |
+| 必填项为「不确定」或说法不统一 | 非空值会被当成"齐全"，跳过问诊；"不知道/unknown/没注意"等说法 If-Else 识别不了；用户后来说"不清楚"会把之前确认的值冲掉 | `code_merge_slots` 把各种"不知道"说法（不分大小写、去掉空格标点后整句匹配）统一成「不确定」，power_state 只接受 3 个枚举值（含少量别名），其他一律「不确定」；「不确定」只能填空槽，不覆盖已确认的值。`if_slots` 对 4 个必填项都要求 非空 且 not contains `不确定`（见 workflow-nodes.md §2.1、§3.2；离线单元测试 `tests/test_code_merge_slots.py`，未在 Dify 运行） |
+| 故障检索查询词太窄 | `kr_fault` 只用本轮用户原话检索，第 2 轮只回答"Model Y"时检索不到相关内容 | `kr_fault` 的 Query Text 改用 `code_merge_slots.fault_query`（品牌+车型+动力类型+READY 状态+症状+提示信息拼接，跳过空值和「不确定」） |
+| 用户一直说不知道能否 READY | 会一直停在问诊 | 设计上不设上限（宁可多问也不硬猜）；§4 规则7 要求给可观察选项，并建议找售后/技师现场确认（TC-19） |
 | LLM 调用失败/超时 | 节点报错 | 在 LLM 节点的 Error Handling 中设置重试，并设置默认值兜底文本：「抱歉，系统暂时没能生成回答。请稍后再试；涉及安全的问题请直接咨询有资质的技师。」（具体选项以当前 Dify 界面为准） |
 | 多知识库检索失败 | 同一节点挂多个库时无结果 | 两个库使用相同的索引方式与 embedding 模型，或配置 rerank 模型（参考 Dify 社区讨论，未本地验证） |
 | 免费额度用完 | Dify Cloud Sandbox 消息额度耗尽 | 回答会失败；需等待额度刷新或升级/换模型 Key（以官方定价页为准，需 Mike 确认） |

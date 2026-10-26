@@ -24,8 +24,10 @@
 **有：**
 - 完整的 Chatflow 设计：节点、变量、分支条件、每个 LLM 节点的完整提示词
 - 5 份示例知识库文档（可以直接上传到 Dify 知识库）
-- 18 条测试用例 + 3 段完整示例对话
+- 20 条测试用例 + 3 段完整示例对话
 - 一个结构化 JSON 设计文件 `dify/chatflow-design.json`
+- 「合并槽位」Code 节点的源码 `dify/code_merge_slots.py` + 离线单元测试 `tests/`（只用 Python 标准库：`python3 tests/test_code_merge_slots.py`；**只测了这段 Python，不代表在 Dify 里跑过**）
+- 纸面推演报告 `docs/dry-run-report.md`（静态检查 + 纸上走一遍所有用例，**不是** Dify 运行结果）
 
 **没有（请注意）：**
 - ❌ 没有部署 Dify，没有在本地或云端运行过这个 Chatflow
@@ -37,7 +39,7 @@
 1. （2 分钟）读完本 README
 2. （3 分钟）看 `docs/architecture.md` 里的流程图，知道有哪些节点
 3. （3 分钟）看 `docs/example-dialogues.md` 三段示例对话，知道助手「应该」怎么回答
-4. （2 分钟）看 `docs/deploy-later.md`，了解以后两种部署方式：**Dify Cloud 免费 Sandbox**（推荐新手，不用装任何东西）或 自己用 Docker 部署（需要电脑，不推荐现在做）
+4. （2 分钟）看 `docs/deploy-later.md`，了解以后两种部署方式：**Dify Cloud 免费 Sandbox**（推荐新手，不用装软件，但需要一台电脑的浏览器；手机能注册，但画布很难操作）或 自己用 Docker 部署（需要电脑，不推荐现在做）
 
 ## 4. 以后怎么部署？（最短路径）
 
@@ -60,7 +62,8 @@ EV/
 │   ├── safety-and-errors.md     ← 安全规则 + 出错时怎么办
 │   ├── example-dialogues.md     ← 三个场景各一段完整示例对话
 │   ├── deploy-later.md          ← 以后部署（Cloud / Docker），需 Mike 确认
-│   └── test-cases.md            ← 18 条测试用例 + 预期行为
+│   ├── test-cases.md            ← 20 条测试用例 + 预期行为 + 纸面结果
+│   └── dry-run-report.md        ← 纸面推演报告（未在 Dify 运行）
 ├── knowledge/                   ← 上传到 Dify 知识库的示例材料
 │   ├── 01-fault-intake.md       ← 故障问诊清单（先问什么）
 │   ├── 02-ev-basics.md          ← 电动车基础结构（示例教学材料）
@@ -69,7 +72,10 @@ EV/
 │   └── 05-australia-notes.md    ← 澳洲工作/认证「如何核实」框架
 └── dify/
     ├── chatflow-design.json     ← 结构化设计（非 DSL）
+    ├── code_merge_slots.py      ← 「合并槽位」Code 节点源码
     └── import-guide.md          ← 在 Dify 界面手工搭建的步骤
+└── tests/
+    └── test_code_merge_slots.py ← Code 节点的离线单元测试
 ```
 
 ## 6. 安全底线（助手必须遵守）
