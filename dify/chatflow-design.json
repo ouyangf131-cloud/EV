@@ -1,0 +1,546 @@
+{
+  "_format": "EV structured design JSON (custom schema 'ev-chatflow-design/v1'). NOT a Dify DSL file and NOT importable via Dify 'Import App'. Build manually following dify/import-guide.md.",
+  "_status": "Design only. Not deployed. Not run in Dify (local or cloud).",
+  "_disclaimer": "教学示例，使用前以现行车厂手册与法规为准。",
+  "_doc_sources": {
+    "checked_on": "2026-10-26",
+    "workflow_chatflow": "https://docs.dify.ai/en/self-host/use-dify/build/workflow-chatflow",
+    "knowledge_retrieval": "https://docs.dify.ai/en/self-host/use-dify/nodes/knowledge-retrieval",
+    "question_classifier": "https://docs.dify.ai/en/self-host/use-dify/nodes/question-classifier",
+    "ifelse": "https://docs.dify.ai/en/self-host/use-dify/nodes/ifelse",
+    "variable_assigner": "https://docs.dify.ai/en/self-host/use-dify/nodes/variable-assigner",
+    "parameter_extractor": "https://docs.dify.ai/en/self-host/use-dify/nodes/parameter-extractor",
+    "llm": "https://docs.dify.ai/en/self-host/use-dify/nodes/llm",
+    "answer": "https://docs.dify.ai/en/self-host/use-dify/nodes/answer",
+    "user_input": "https://docs.dify.ai/en/self-host/use-dify/nodes/user-input",
+    "export_import": "https://docs.dify.ai/en/self-host/use-dify/workspace/export-import-apps"
+  },
+  "app": {
+    "name": "EV",
+    "mode": "chatflow",
+    "language": "zh-CN (English technical terms kept)",
+    "description": "新能源汽车维修学习助手：故障问诊与排查方向、知识问答（带引用）、维修英语术语",
+    "example_brands": [
+      "Tesla",
+      "GAC Aion",
+      "BYD",
+      "Toyota",
+      "Nissan",
+      "Honda",
+      "Volkswagen ID.",
+      "BMW i",
+      "Mercedes-Benz EQ"
+    ],
+    "features": {
+      "citation_and_attributions": true,
+      "content_moderation": "optional, not configured"
+    }
+  },
+  "knowledge_bases": [
+    {
+      "name": "ev-knowledge",
+      "files": [
+        "knowledge/01-fault-intake.md",
+        "knowledge/02-ev-basics.md",
+        "knowledge/03-safety-hv.md",
+        "knowledge/05-australia-notes.md"
+      ]
+    },
+    {
+      "name": "ev-glossary",
+      "files": [
+        "knowledge/04-glossary-en.md"
+      ]
+    }
+  ],
+  "conversation_variables": [
+    {
+      "name": "brand",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "vehicle_model",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "model_year",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "powertrain",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "mileage",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "power_state",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "symptom",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "warning_info",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "recent_events",
+      "type": "string",
+      "default": ""
+    }
+  ],
+  "required_slots": [
+    "brand",
+    "vehicle_model",
+    "power_state",
+    "symptom"
+  ],
+  "intent_labels": [
+    "fault",
+    "knowledge",
+    "english",
+    "unsafe_hv",
+    "out_of_scope"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "User Input",
+      "title": "开始",
+      "outputs": [
+        "userinput.query (older UIs: sys.query)"
+      ]
+    },
+    {
+      "id": "llm_classify",
+      "type": "LLM",
+      "title": "意图分类",
+      "prompt_ref": "docs/system-prompts.md#§2",
+      "input": "userinput.query",
+      "memory": true,
+      "temperature_hint": "low",
+      "outputs": [
+        "text"
+      ],
+      "alternative": {
+        "type": "Question Classifier",
+        "note": "Define 5 classes using label definitions from §2; put HV-priority rule in Instructions; removes need for if_route."
+      }
+    },
+    {
+      "id": "if_route",
+      "type": "If-Else",
+      "title": "分流",
+      "cases": [
+        {
+          "case": "IF",
+          "variable": "llm_classify.text",
+          "operator": "contains",
+          "value": "unsafe_hv",
+          "target": "llm_refusal"
+        },
+        {
+          "case": "ELIF",
+          "variable": "llm_classify.text",
+          "operator": "contains",
+          "value": "fault",
+          "target": "pe_slots"
+        },
+        {
+          "case": "ELIF",
+          "variable": "llm_classify.text",
+          "operator": "contains",
+          "value": "knowledge",
+          "target": "kr_knowledge"
+        },
+        {
+          "case": "ELIF",
+          "variable": "llm_classify.text",
+          "operator": "contains",
+          "value": "english",
+          "target": "kr_glossary"
+        },
+        {
+          "case": "ELSE",
+          "target": "llm_refusal",
+          "note": "out_of_scope or unexpected output"
+        }
+      ]
+    },
+    {
+      "id": "pe_slots",
+      "type": "Parameter Extractor",
+      "title": "槽位提取",
+      "input": "userinput.query",
+      "instruction_ref": "docs/system-prompts.md#§3",
+      "parameters": [
+        {
+          "name": "brand",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "vehicle_model",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "model_year",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "powertrain",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "mileage",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "power_state",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "symptom",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "warning_info",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "recent_events",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "va_slots",
+      "type": "Variable Assigner",
+      "title": "保存槽位",
+      "assignments": [
+        {
+          "variable": "conversation.brand",
+          "operation": "overwrite",
+          "source": "pe_slots.brand"
+        },
+        {
+          "variable": "conversation.vehicle_model",
+          "operation": "overwrite",
+          "source": "pe_slots.vehicle_model"
+        },
+        {
+          "variable": "conversation.model_year",
+          "operation": "overwrite",
+          "source": "pe_slots.model_year"
+        },
+        {
+          "variable": "conversation.powertrain",
+          "operation": "overwrite",
+          "source": "pe_slots.powertrain"
+        },
+        {
+          "variable": "conversation.mileage",
+          "operation": "overwrite",
+          "source": "pe_slots.mileage"
+        },
+        {
+          "variable": "conversation.power_state",
+          "operation": "overwrite",
+          "source": "pe_slots.power_state"
+        },
+        {
+          "variable": "conversation.symptom",
+          "operation": "overwrite",
+          "source": "pe_slots.symptom"
+        },
+        {
+          "variable": "conversation.warning_info",
+          "operation": "overwrite",
+          "source": "pe_slots.warning_info"
+        },
+        {
+          "variable": "conversation.recent_events",
+          "operation": "overwrite",
+          "source": "pe_slots.recent_events"
+        }
+      ]
+    },
+    {
+      "id": "if_slots",
+      "type": "If-Else",
+      "title": "信息是否齐全",
+      "cases": [
+        {
+          "case": "IF",
+          "logic": "AND",
+          "conditions": [
+            {
+              "variable": "conversation.brand",
+              "operator": "is not empty"
+            },
+            {
+              "variable": "conversation.vehicle_model",
+              "operator": "is not empty"
+            },
+            {
+              "variable": "conversation.power_state",
+              "operator": "is not empty"
+            },
+            {
+              "variable": "conversation.symptom",
+              "operator": "is not empty"
+            }
+          ],
+          "target": "kr_fault"
+        },
+        {
+          "case": "ELSE",
+          "target": "kr_intake"
+        }
+      ]
+    },
+    {
+      "id": "kr_intake",
+      "type": "Knowledge Retrieval",
+      "title": "问诊清单检索（可选）",
+      "query": "userinput.query",
+      "knowledge": [
+        "ev-knowledge"
+      ],
+      "optional": true,
+      "metadata_filter_hint": "01-fault-intake only (optional)",
+      "top_k_hint": "3-5, untested",
+      "outputs": [
+        "result"
+      ]
+    },
+    {
+      "id": "llm_intake",
+      "type": "LLM",
+      "title": "信息收集",
+      "context": "kr_intake.result",
+      "memory": true,
+      "prompt_ref": "docs/system-prompts.md#§4",
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "id": "kr_fault",
+      "type": "Knowledge Retrieval",
+      "title": "排查资料检索",
+      "query": "userinput.query",
+      "knowledge": [
+        "ev-knowledge"
+      ],
+      "top_k_hint": "3-5, untested",
+      "outputs": [
+        "result"
+      ]
+    },
+    {
+      "id": "llm_troubleshoot",
+      "type": "LLM",
+      "title": "排查方向",
+      "context": "kr_fault.result",
+      "memory": true,
+      "prompt_ref": "docs/system-prompts.md#§5",
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "id": "kr_knowledge",
+      "type": "Knowledge Retrieval",
+      "title": "知识检索",
+      "query": "userinput.query",
+      "knowledge": [
+        "ev-knowledge"
+      ],
+      "top_k_hint": "3-5, untested",
+      "outputs": [
+        "result"
+      ]
+    },
+    {
+      "id": "llm_knowledge",
+      "type": "LLM",
+      "title": "知识问答（带引用）",
+      "context": "kr_knowledge.result",
+      "memory": true,
+      "prompt_ref": "docs/system-prompts.md#§6",
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "id": "kr_glossary",
+      "type": "Knowledge Retrieval",
+      "title": "术语检索",
+      "query": "userinput.query",
+      "knowledge": [
+        "ev-glossary"
+      ],
+      "top_k_hint": "3-5, untested",
+      "outputs": [
+        "result"
+      ]
+    },
+    {
+      "id": "llm_english",
+      "type": "LLM",
+      "title": "术语+例句+对话",
+      "context": "kr_glossary.result",
+      "memory": true,
+      "prompt_ref": "docs/system-prompts.md#§7",
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "id": "llm_refusal",
+      "type": "LLM",
+      "title": "安全拒答模板",
+      "inputs": [
+        "userinput.query",
+        "llm_classify.text"
+      ],
+      "memory": false,
+      "prompt_ref": "docs/system-prompts.md#§8",
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "id": "ans_intake",
+      "type": "Answer",
+      "content": "{{#llm_intake.text#}}"
+    },
+    {
+      "id": "ans_troubleshoot",
+      "type": "Answer",
+      "content": "{{#llm_troubleshoot.text#}}"
+    },
+    {
+      "id": "ans_knowledge",
+      "type": "Answer",
+      "content": "{{#llm_knowledge.text#}}"
+    },
+    {
+      "id": "ans_english",
+      "type": "Answer",
+      "content": "{{#llm_english.text#}}"
+    },
+    {
+      "id": "ans_refusal",
+      "type": "Answer",
+      "content": "{{#llm_refusal.text#}}"
+    }
+  ],
+  "edges": [
+    [
+      "start",
+      "llm_classify"
+    ],
+    [
+      "llm_classify",
+      "if_route"
+    ],
+    [
+      "if_route:unsafe_hv",
+      "llm_refusal"
+    ],
+    [
+      "if_route:fault",
+      "pe_slots"
+    ],
+    [
+      "if_route:knowledge",
+      "kr_knowledge"
+    ],
+    [
+      "if_route:english",
+      "kr_glossary"
+    ],
+    [
+      "if_route:else",
+      "llm_refusal"
+    ],
+    [
+      "pe_slots",
+      "va_slots"
+    ],
+    [
+      "va_slots",
+      "if_slots"
+    ],
+    [
+      "if_slots:complete",
+      "kr_fault"
+    ],
+    [
+      "if_slots:else",
+      "kr_intake"
+    ],
+    [
+      "kr_intake",
+      "llm_intake"
+    ],
+    [
+      "llm_intake",
+      "ans_intake"
+    ],
+    [
+      "kr_fault",
+      "llm_troubleshoot"
+    ],
+    [
+      "llm_troubleshoot",
+      "ans_troubleshoot"
+    ],
+    [
+      "kr_knowledge",
+      "llm_knowledge"
+    ],
+    [
+      "llm_knowledge",
+      "ans_knowledge"
+    ],
+    [
+      "kr_glossary",
+      "llm_english"
+    ],
+    [
+      "llm_english",
+      "ans_english"
+    ],
+    [
+      "llm_refusal",
+      "ans_refusal"
+    ]
+  ],
+  "error_handling": {
+    "llm_nodes": "Enable retry; fallback default value text",
+    "default_text": "抱歉，系统暂时没能生成回答。请稍后再试；涉及安全的问题请直接咨询有资质的技师。"
+  },
+  "test_cases_ref": "docs/test-cases.md"
+}

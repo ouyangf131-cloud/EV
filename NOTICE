@@ -1,0 +1,19 @@
+NOTICE / 免责声明
+
+1. 本仓库是 Dify Chatflow「EV」的设计文档，Dify 应用尚未部署或运行。
+   This repository contains design documents only. The Dify app has not been deployed or run anywhere.
+
+2. knowledge/ 目录下所有内容均为「示例教学材料，非某车厂正式手册」。
+   教学示例，使用前以现行车厂手册与法规为准。
+   All knowledge files are teaching examples, NOT official manufacturer service manuals.
+   Always follow the current OEM service manual and applicable laws/regulations.
+
+3. 文中出现的品牌名（Tesla、GAC Aion / 广汽埃安、BYD / 比亚迪、Toyota、Nissan、Honda、
+   Volkswagen ID.、BMW i、Mercedes-Benz EQ 等）仅用于教学举例，商标归各自所有者。
+   本仓库不代表任何车厂，不包含任何车厂的故障码定义、规格参数或维修步骤。
+
+4. 高压（High Voltage）系统作业只能由具备相应资质、经过培训、配备合格 PPE 并按
+   官方维修手册与当地法规操作的人员进行。本仓库不提供高压作业步骤。
+
+5. 有关澳大利亚工作、签证、执照、技能评估的内容只是「如何核实」的框架，
+   不构成移民、法律或职业建议。所有要求以官方机构当前发布的信息为准。
