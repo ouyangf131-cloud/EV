@@ -21,9 +21,10 @@ flowchart TD
     C -- english --> E1[Knowledge Retrieval「术语检索」<br/>知识库: ev-glossary]
     C -- "ELSE（out_of_scope 或无法识别）" --> R
 
-    F1 --> F2[Variable Assigner「保存槽位」<br/>写入 conversation 变量]
+    F1 --> FM[Code「合并槽位」<br/>新值为空或提取失败时保留旧值]
+    FM --> F2[Variable Assigner「保存槽位」<br/>Overwrite 合并结果到 conversation 变量]
     F2 --> F3{If-Else「信息是否齐全」}
-    F3 -- 缺必填项 --> F4[Knowledge Retrieval「问诊清单检索」<br/>可选]
+    F3 -- "缺必填项，或 power_state 含「不确定」" --> F4[Knowledge Retrieval「问诊清单检索」<br/>可选]
     F4 --> F5[LLM「信息收集」]
     F5 --> AF1[Answer]
     F3 -- 齐全 --> F6[Knowledge Retrieval「排查资料检索」<br/>问诊清单 + 安全红线 + 基础知识]

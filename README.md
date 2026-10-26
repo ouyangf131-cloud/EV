@@ -24,7 +24,7 @@
 **有：**
 - 完整的 Chatflow 设计：节点、变量、分支条件、每个 LLM 节点的完整提示词
 - 5 份示例知识库文档（可以直接上传到 Dify 知识库）
-- 17 条测试用例 + 3 段完整示例对话
+- 18 条测试用例 + 3 段完整示例对话
 - 一个结构化 JSON 设计文件 `dify/chatflow-design.json`
 
 **没有（请注意）：**
@@ -60,7 +60,7 @@ EV/
 │   ├── safety-and-errors.md     ← 安全规则 + 出错时怎么办
 │   ├── example-dialogues.md     ← 三个场景各一段完整示例对话
 │   ├── deploy-later.md          ← 以后部署（Cloud / Docker），需 Mike 确认
-│   └── test-cases.md            ← 17 条测试用例 + 预期行为
+│   └── test-cases.md            ← 18 条测试用例 + 预期行为
 ├── knowledge/                   ← 上传到 Dify 知识库的示例材料
 │   ├── 01-fault-intake.md       ← 故障问诊清单（先问什么）
 │   ├── 02-ev-basics.md          ← 电动车基础结构（示例教学材料）

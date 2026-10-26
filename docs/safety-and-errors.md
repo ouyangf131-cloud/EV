@@ -13,7 +13,7 @@
 | S5 | 澳洲工作/认证：附来源+日期，不知道就说不知道，不编分数线 | §1 第 5 条；`llm_knowledge` 第 4 条；knowledge/05 | TC-12、TC-13 |
 | S6 | 知识库样例带声明「教学示例，使用前以现行车厂手册与法规为准」 | knowledge/ 每个文件开头和结尾；`llm_knowledge` 第 5 条 | TC-04 |
 | S7 | 知识不足就说不知道 | `llm_knowledge` 第 2 条 | TC-05 |
-| S8 | 紧急情况（冒烟/泡水/碰撞）先提醒远离车辆 | `llm_intake` 第 5 条；`llm_refusal` 情况 A 第 5 条 | TC-11 |
+| S8 | 紧急情况（冒烟、异味、起火、漏液、泡水、碰撞等）第一句先提醒立即远离车辆并联系专业救援 | §1 SAFETY_BLOCK 第 8 条（§4–§8 所有回答节点都继承）；另有 `llm_intake` 第 5 条、`llm_refusal` 情况 A 第 5 条 | TC-11、TC-18 |
 
 ## 2. 品牌相关的特别规则
 
@@ -37,7 +37,8 @@
 | 检索为空 | Knowledge Retrieval 的 `result` 为空 | `llm_knowledge` 提示词要求回答"知识库中没有找到可靠依据，我不知道"，并指出去哪类地方查 |
 | 检索不相关 | 返回内容和问题无关 | 同上；提示词要求"不相关"也视为不足 |
 | 分类输出异常 | `llm_classify` 输出不在 5 个标签内 | If-Else 的 ELSE 分支兜底 → 安全拒答模板（情况 B） |
-| 槽位被清空 | Parameter Extractor 本轮没提取到 → 覆盖成空值 | 指令要求"没提到就原样输出已记录的值"。**风险**：模型不一定严格遵守，需实际测试；备选方案是在 Variable Assigner 前加 If-Else，只在提取值非空时写入 |
+| 槽位被清空 | Parameter Extractor 本轮没提取到或提取失败 → 若直接 Overwrite 会变成空值 | 在 `pe_slots` 和 `va_slots` 之间加 Code 节点 `code_merge_slots`：`__is_success==0` 时全部沿用旧值，新值为空时保留旧值，`va_slots` 只 Overwrite 合并结果（见 workflow-nodes.md §2.1）。指令里"没提到就原样输出已记录的值"保留作为第二层保护。需以后实测 |
+| power_state 为「不确定」 | 非空值会被当成"齐全"，跳过问诊 | `if_slots` 条件加 `power_state` not contains `不确定`，继续走问诊（见 workflow-nodes.md §3.2） |
 | LLM 调用失败/超时 | 节点报错 | 在 LLM 节点的 Error Handling 中设置重试，并设置默认值兜底文本：「抱歉，系统暂时没能生成回答。请稍后再试；涉及安全的问题请直接咨询有资质的技师。」（具体选项以当前 Dify 界面为准） |
 | 多知识库检索失败 | 同一节点挂多个库时无结果 | 两个库使用相同的索引方式与 embedding 模型，或配置 rerank 模型（参考 Dify 社区讨论，未本地验证） |
 | 免费额度用完 | Dify Cloud Sandbox 消息额度耗尽 | 回答会失败；需等待额度刷新或升级/换模型 Key（以官方定价页为准，需 Mike 确认） |

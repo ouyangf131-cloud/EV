@@ -230,7 +230,146 @@
           "type": "string",
           "required": false
         }
+      ],
+      "outputs": [
+        "brand",
+        "vehicle_model",
+        "model_year",
+        "powertrain",
+        "mileage",
+        "power_state",
+        "symptom",
+        "warning_info",
+        "recent_events",
+        "__is_success",
+        "__reason"
       ]
+    },
+    {
+      "id": "code_merge_slots",
+      "type": "Code",
+      "title": "合并槽位",
+      "language": "python3",
+      "purpose": "Merge new slots from pe_slots with old conversation values: if pe_slots.__is_success == 0, keep ALL old values; otherwise use the new value only when it is non-empty (after strip), else keep the old value. Prevents Variable Assigner Overwrite from clearing slots.",
+      "inputs": [
+        {
+          "name": "is_success",
+          "source": "pe_slots.__is_success"
+        },
+        {
+          "name": "new_brand",
+          "source": "pe_slots.brand"
+        },
+        {
+          "name": "new_vehicle_model",
+          "source": "pe_slots.vehicle_model"
+        },
+        {
+          "name": "new_model_year",
+          "source": "pe_slots.model_year"
+        },
+        {
+          "name": "new_powertrain",
+          "source": "pe_slots.powertrain"
+        },
+        {
+          "name": "new_mileage",
+          "source": "pe_slots.mileage"
+        },
+        {
+          "name": "new_power_state",
+          "source": "pe_slots.power_state"
+        },
+        {
+          "name": "new_symptom",
+          "source": "pe_slots.symptom"
+        },
+        {
+          "name": "new_warning_info",
+          "source": "pe_slots.warning_info"
+        },
+        {
+          "name": "new_recent_events",
+          "source": "pe_slots.recent_events"
+        },
+        {
+          "name": "old_brand",
+          "source": "conversation.brand"
+        },
+        {
+          "name": "old_vehicle_model",
+          "source": "conversation.vehicle_model"
+        },
+        {
+          "name": "old_model_year",
+          "source": "conversation.model_year"
+        },
+        {
+          "name": "old_powertrain",
+          "source": "conversation.powertrain"
+        },
+        {
+          "name": "old_mileage",
+          "source": "conversation.mileage"
+        },
+        {
+          "name": "old_power_state",
+          "source": "conversation.power_state"
+        },
+        {
+          "name": "old_symptom",
+          "source": "conversation.symptom"
+        },
+        {
+          "name": "old_warning_info",
+          "source": "conversation.warning_info"
+        },
+        {
+          "name": "old_recent_events",
+          "source": "conversation.recent_events"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "brand",
+          "type": "string"
+        },
+        {
+          "name": "vehicle_model",
+          "type": "string"
+        },
+        {
+          "name": "model_year",
+          "type": "string"
+        },
+        {
+          "name": "powertrain",
+          "type": "string"
+        },
+        {
+          "name": "mileage",
+          "type": "string"
+        },
+        {
+          "name": "power_state",
+          "type": "string"
+        },
+        {
+          "name": "symptom",
+          "type": "string"
+        },
+        {
+          "name": "warning_info",
+          "type": "string"
+        },
+        {
+          "name": "recent_events",
+          "type": "string"
+        }
+      ],
+      "code": "SLOTS = [\"brand\", \"vehicle_model\", \"model_year\", \"powertrain\", \"mileage\",\n         \"power_state\", \"symptom\", \"warning_info\", \"recent_events\"]\n\n\ndef _clean(v):\n    if v is None:\n        return \"\"\n    return str(v).strip()\n\n\ndef main(is_success,\n         new_brand, new_vehicle_model, new_model_year, new_powertrain, new_mileage,\n         new_power_state, new_symptom, new_warning_info, new_recent_events,\n         old_brand, old_vehicle_model, old_model_year, old_powertrain, old_mileage,\n         old_power_state, old_symptom, old_warning_info, old_recent_events) -> dict:\n    args = dict(locals())\n    # 提取失败（__is_success == 0）时，9 个槽位全部沿用旧值\n    failed = _clean(is_success) in (\"0\", \"0.0\", \"False\", \"false\")\n    out = {}\n    for k in SLOTS:\n        old = _clean(args.get(\"old_\" + k))\n        new = _clean(args.get(\"new_\" + k))\n        # 新值为空 → 保留旧值；否则用新值\n        out[k] = old if (failed or not new) else new\n    return out\n",
+      "code_ref": "docs/workflow-nodes.md#2.1",
+      "note": "Design only; logic unit-checked locally with plain python3, not run in Dify."
     },
     {
       "id": "va_slots",
@@ -240,49 +379,50 @@
         {
           "variable": "conversation.brand",
           "operation": "overwrite",
-          "source": "pe_slots.brand"
+          "source": "code_merge_slots.brand"
         },
         {
           "variable": "conversation.vehicle_model",
           "operation": "overwrite",
-          "source": "pe_slots.vehicle_model"
+          "source": "code_merge_slots.vehicle_model"
         },
         {
           "variable": "conversation.model_year",
           "operation": "overwrite",
-          "source": "pe_slots.model_year"
+          "source": "code_merge_slots.model_year"
         },
         {
           "variable": "conversation.powertrain",
           "operation": "overwrite",
-          "source": "pe_slots.powertrain"
+          "source": "code_merge_slots.powertrain"
         },
         {
           "variable": "conversation.mileage",
           "operation": "overwrite",
-          "source": "pe_slots.mileage"
+          "source": "code_merge_slots.mileage"
         },
         {
           "variable": "conversation.power_state",
           "operation": "overwrite",
-          "source": "pe_slots.power_state"
+          "source": "code_merge_slots.power_state"
         },
         {
           "variable": "conversation.symptom",
           "operation": "overwrite",
-          "source": "pe_slots.symptom"
+          "source": "code_merge_slots.symptom"
         },
         {
           "variable": "conversation.warning_info",
           "operation": "overwrite",
-          "source": "pe_slots.warning_info"
+          "source": "code_merge_slots.warning_info"
         },
         {
           "variable": "conversation.recent_events",
           "operation": "overwrite",
-          "source": "pe_slots.recent_events"
+          "source": "code_merge_slots.recent_events"
         }
-      ]
+      ],
+      "note": "All 9 rows Overwrite with the merged result from code_merge_slots (not directly from pe_slots)."
     },
     {
       "id": "if_slots",
@@ -306,11 +446,17 @@
               "operator": "is not empty"
             },
             {
+              "variable": "conversation.power_state",
+              "operator": "not contains",
+              "value": "不确定"
+            },
+            {
               "variable": "conversation.symptom",
               "operator": "is not empty"
             }
           ],
-          "target": "kr_fault"
+          "target": "kr_fault",
+          "note": "NB2: power_state='不确定' does NOT count as complete -> goes to kr_intake/llm_intake for a follow-up question about READY. No ask-count cap (chosen design: condition only)."
         },
         {
           "case": "ELSE",
@@ -487,6 +633,10 @@
     ],
     [
       "pe_slots",
+      "code_merge_slots"
+    ],
+    [
+      "code_merge_slots",
       "va_slots"
     ],
     [
@@ -542,5 +692,21 @@
     "llm_nodes": "Enable retry; fallback default value text",
     "default_text": "抱歉，系统暂时没能生成回答。请稍后再试；涉及安全的问题请直接咨询有资质的技师。"
   },
-  "test_cases_ref": "docs/test-cases.md"
+  "test_cases_ref": "docs/test-cases.md",
+  "safety_block": {
+    "ref": "docs/system-prompts.md#§1",
+    "embedded_in_prompts": [
+      "llm_intake (§4)",
+      "llm_troubleshoot (§5)",
+      "llm_knowledge (§6)",
+      "llm_english (§7)",
+      "llm_refusal (§8)"
+    ],
+    "not_embedded": {
+      "llm_classify (§2)": "label-only output",
+      "pe_slots (§3)": "parameter extraction, does not answer the user"
+    },
+    "rule_count": 8,
+    "rule_8_emergency": "紧急情况（冒烟、异味、起火、漏液等）立即远离车辆并联系专业救援。"
+  }
 }

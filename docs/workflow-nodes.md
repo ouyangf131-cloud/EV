@@ -28,8 +28,9 @@
 | `start` | User Input | 开始 | 用户消息 | `userinput.query` | Chatflow 自动捕获用户本轮消息；本设计不加额外输入字段 |
 | `llm_classify` | LLM | 意图分类 | `userinput.query`；Memory 开启（窗口建议小，如最近几轮，具体值待调） | `text`（单个标签） | 提示词见 system-prompts.md §2；temperature 建议低 |
 | `if_route` | If-Else | 分流 | `{{#llm_classify.text#}}` | 5 条路径 | 条件见 §3 |
-| `pe_slots` | Parameter Extractor | 槽位提取 | `userinput.query` + 当前会话变量（写进 instruction） | 9 个参数 | 指令见 system-prompts.md §3 |
-| `va_slots` | Variable Assigner | 保存槽位 | `pe_slots` 的各参数 | 写入会话变量 | 操作模式 Overwrite |
+| `pe_slots` | Parameter Extractor | 槽位提取 | `userinput.query` + 当前会话变量（写进 instruction） | 9 个参数 + `__is_success`、`__reason` | 指令见 system-prompts.md §3 |
+| `code_merge_slots` | Code | 合并槽位 | `pe_slots.__is_success`、`pe_slots` 的 9 个新值、9 个会话变量旧值 | 9 个合并后的 String | 新旧合并：`__is_success==0` 时全部沿用旧值；新值为空时保留旧值。代码见 §2.1 |
+| `va_slots` | Variable Assigner | 保存槽位 | `code_merge_slots` 的 9 个输出 | 写入会话变量 | 操作模式 Overwrite（写入的是合并结果，不会被空值清空） |
 | `if_slots` | If-Else | 信息是否齐全 | 会话变量 | 2 条路径 | 条件见 §3 |
 | `kr_intake` | Knowledge Retrieval | 问诊清单检索（可选） | `userinput.query` | `result` | 知识库 `ev-knowledge`；可用 metadata 只检索 01 文件 |
 | `llm_intake` | LLM | 信息收集 | Context = `kr_intake.result`；会话变量 | `text` | 只问缺失信息，不给结论 |
@@ -41,6 +42,57 @@
 | `llm_english` | LLM | 术语+例句+对话 | Context = `kr_glossary.result` | `text` | |
 | `llm_refusal` | LLM | 安全拒答模板 | `userinput.query`、`llm_classify.text` | `text` | 处理 unsafe_hv / out_of_scope |
 | `ans_intake` / `ans_troubleshoot` / `ans_knowledge` / `ans_english` / `ans_refusal` | Answer | 回复 | 对应 LLM 的 `text` | 回复用户 | 内容只放 `{{#<llm_id>.text#}}` |
+
+共 21 个节点、21 条边（见 `dify/chatflow-design.json`）。
+
+### 2.1 Code 节点「合并槽位」（`code_merge_slots`）
+
+为什么需要：Variable Assigner 对 String 只有 Overwrite / Clear / Set，没有"非空才写"。如果直接把 `pe_slots` 的输出 Overwrite 到会话变量，提取失败（`__is_success=0`）或某一项漏填时，旧值会被空值清空。所以在 `pe_slots` 和 `va_slots` 之间加一个 Code 节点做合并，`va_slots` 再统一 Overwrite 合并结果。
+
+输入变量（共 19 个，名字要和代码参数一致）：
+
+| 输入名 | 来源 |
+|------|------|
+| `is_success` | `pe_slots.__is_success` |
+| `new_brand` … `new_recent_events`（9 个） | `pe_slots` 的同名参数 |
+| `old_brand` … `old_recent_events`（9 个） | 同名会话变量 `conversation.xxx` |
+
+输出变量（9 个，类型都选 String）：`brand`、`vehicle_model`、`model_year`、`powertrain`、`mileage`、`power_state`、`symptom`、`warning_info`、`recent_events`。
+
+代码（Python 3；已在本机用普通 python3 做过逻辑单元检查，**未在 Dify 中运行**）：
+
+```python
+SLOTS = ["brand", "vehicle_model", "model_year", "powertrain", "mileage",
+         "power_state", "symptom", "warning_info", "recent_events"]
+
+
+def _clean(v):
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
+def main(is_success,
+         new_brand, new_vehicle_model, new_model_year, new_powertrain, new_mileage,
+         new_power_state, new_symptom, new_warning_info, new_recent_events,
+         old_brand, old_vehicle_model, old_model_year, old_powertrain, old_mileage,
+         old_power_state, old_symptom, old_warning_info, old_recent_events) -> dict:
+    args = dict(locals())
+    # 提取失败（__is_success == 0）时，9 个槽位全部沿用旧值
+    failed = _clean(is_success) in ("0", "0.0", "False", "false")
+    out = {}
+    for k in SLOTS:
+        old = _clean(args.get("old_" + k))
+        new = _clean(args.get("new_" + k))
+        # 新值为空 → 保留旧值；否则用新值
+        out[k] = old if (failed or not new) else new
+    return out
+```
+
+合并规则：
+- `__is_success == 0`（提取失败）→ 9 个槽位全部沿用旧值
+- 否则，每个槽位：新值去掉首尾空格后非空 → 用新值；为空 → 保留旧值
+- 已知局限：用户想主动清空某个槽位（例如换了一台车）时，这个合并逻辑不会清空；建议换车时新开会话
 
 ## 3. 分支条件
 
@@ -62,8 +114,10 @@ LLM 输出可能带空格或换行，所以用 **Contains**（包含）而不是
 
 | 分支 | 条件（AND） | 去向 |
 |------|------|------|
-| IF 齐全 | `conversation.brand` is not empty **AND** `conversation.vehicle_model` is not empty **AND** `conversation.power_state` is not empty **AND** `conversation.symptom` is not empty | `kr_fault` → `llm_troubleshoot` |
+| IF 齐全 | `conversation.brand` is not empty **AND** `conversation.vehicle_model` is not empty **AND** `conversation.power_state` is not empty **AND** `conversation.power_state` **not contains** `不确定` **AND** `conversation.symptom` is not empty | `kr_fault` → `llm_troubleshoot` |
 | ELSE 缺信息 | 其他 | `kr_intake` → `llm_intake` |
+
+关于 `power_state=不确定`："不确定"是非空值，如果只判断 is not empty，就会被当成"齐全"而跳过问诊。本设计选择**只改条件**（非空 **且** 不包含「不确定」），不加追问计数变量：`power_state` 为「不确定」时继续走 `llm_intake`，由问诊节点用可观察的现象（屏幕亮不亮、仪表有没有 READY 字样、能不能挂挡行驶）再问一次。已知局限：如果用户始终答不出，会一直停留在问诊环节，不会给排查方向（这是有意的保守设计）；这时问诊提示词会建议联系品牌售后或有资质的技师现场确认（见 system-prompts.md §4 第 7 条）。
 
 ### 3.3 备选：用 Question Classifier 代替「LLM 意图分类 + If-Else」
 

@@ -21,7 +21,20 @@
 | 澳洲的汽车维修相关正规资格和 EV / 高压相关能力单元有哪些？ | training.gov.au（全国职业教育与培训登记官方网站），搜索 automotive、electric vehicle、high voltage |
 | 在某个州工作需要哪种执照或注册？ | 该州/领地负责汽车维修行业执照的主管部门，以及州/领地的培训主管部门（state training authority） |
 | 雇主通常要求什么？ | 招聘广告和雇主本身；行业协会（非政府机构，信息需与官方来源交叉核实） |
-| 汽车维修信息怎么获取（独立维修者能否拿到车厂资料）？ | 澳大利亚政府关于汽车维修信息共享制度的官方页面（制度名称和细节**待核实**） |
+| 汽车维修信息怎么获取（独立维修者能否拿到车厂资料）？ | 澳大利亚政府关于汽车维修信息共享制度的官方页面：ACCC 的 Motor Vehicle Information Scheme 说明页（网址见 2.1；适用范围和获取方式以页面当天内容为准） |
+
+## 2.1 官方入口网址（只是入口，不含任何具体要求）
+
+> 查询日期：**2026-10-26**（使用前复查：网址和页面内容可能变化，请打开后以当天页面为准，并按下面的记录模板记下查询日期）。
+> 本节只列官方入口，**不包含**任何分数线、年限、费用、职业代码或执照条件。
+
+| 机构 / 入口 | 用途（查什么） | 网址 | 查询日期 |
+|------|------|------|------|
+| Department of Home Affairs（澳大利亚内政部，移民与签证官方网站） | 签证、职业清单、英语要求、职业对应的评估机构 | https://immi.homeaffairs.gov.au | 2026-10-26（使用前复查） |
+| Trades Recognition Australia (TRA) | 技工类职业的技能评估（是否由 TRA 评估，以 Home Affairs 职业清单为准） | https://www.tradesrecognitionaustralia.gov.au | 2026-10-26（使用前复查） |
+| training.gov.au（全国职业教育与培训登记官方网站） | 汽车维修相关资格、EV / 高压相关能力单元 | https://training.gov.au | 2026-10-26（使用前复查） |
+| ACCC（澳大利亚竞争与消费者委员会）—— Motor Vehicle Information Scheme 说明页 | 汽车维修信息共享制度的官方说明（适用对象、获取方式以页面为准） | https://www.accc.gov.au/by-industry/cars-and-vehicles/about-the-motor-vehicle-information-scheme | 2026-10-26（使用前复查） |
+| AASRA | 与汽车维修信息共享制度相关的机构网站（其角色与具体流程以 ACCC 页面和该网站当天内容为准） | https://aasra.com.au | 2026-10-26（使用前复查） |
 
 ## 3. 记录模板（复制使用）
 
